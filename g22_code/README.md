@@ -183,3 +183,23 @@ dir data\incomp.gz
 ```
 
 Expected behavior is for the .gz size to be approximately the same as the original size, sometimes slightly larger (~0.1–1% overhead).
+
+
+# Python implementation
+Uses no built-in gzip or zlib libraries, just pure Python. It is not optimized for performance, but it should produce the same output as the C++ implementation for the same input and seed.
+
+To run the Python Compression implementation, use:
+```bash
+python zip.py c file_in file_out.gz
+```
+
+To run the Python Decompression implementation, use:
+```bash
+python zip.py d file_in.gz file_out
+```
+
+I have tested
+- round-trip integrity (decompress(compress(input)) == input)
+- compressed output can be decompressed by 7zip 
+- 7zip compressed output can be decompressed by my implementation
+
