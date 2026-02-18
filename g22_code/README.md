@@ -71,6 +71,26 @@ lang\cpp\zip.exe c data\input_compressible_64MB.jsonl data\out.gz
 lang\cpp\zip.exe d data\out.gz data\roundtrip.jsonl
 ```
 
+### 2.c Build and run the GO implementation
+
+### Requirements (Windows + MSYS2 UCRT64)
+* `GO` ([Link](https://go.dev/doc/install))
+
+### Compile
+```bat
+go build -o lang/go/zip.exe lang/go/zip.go
+```
+
+### Run: compress
+```bat
+lang\go\zip.exe c data\input_compressible_64MB.jsonl data\out.gz
+```
+
+### Run: decompress
+```bat
+lang\go\zip.exe d data\out.gz data\roundtrip.jsonl
+```
+
 ## 3. Test that compressible output is correct
 Correctness is defined as:
 1. **Round-trip integrity:**
