@@ -71,9 +71,9 @@ lang\cpp\zip.exe c data\input_compressible_64MB.jsonl data\out.gz
 lang\cpp\zip.exe d data\out.gz data\roundtrip.jsonl
 ```
 
-### 2.c Build and run the GO implementation
+## 2.c Build and run the GO implementation
 
-### Requirements (Windows + MSYS2 UCRT64)
+### Requirements
 * `GO` ([Link](https://go.dev/doc/install))
 
 ### Compile
