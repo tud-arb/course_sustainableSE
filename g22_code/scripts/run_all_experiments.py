@@ -374,10 +374,28 @@ def main():
                     if eb_csv.exists():
                         summary = parse_energibridge_summary(eb_csv)
 
+                    # --- Compute derived metrics ---
+                    input_size_bytes = inp.stat().st_size if inp.exists() else 0
+                    output_size_bytes = outp.stat().st_size if outp.exists() else 0
+                    input_size_mb = input_size_bytes / (1024 * 1024)
+
+                    # Compression ratio = uncompressed / compressed  (>1 means smaller)
+                    if mode == "c":
+                        compression_ratio = (input_size_bytes / output_size_bytes) if output_size_bytes > 0 else 0.0
+                    else:
+                        # Decompression: input is compressed, output is uncompressed
+                        compression_ratio = (output_size_bytes / input_size_bytes) if input_size_bytes > 0 else 0.0
+
+                    # Energy per MB (joules per megabyte of input)
+                    total_energy = summary.get("total_energy_j", None)
+                    energy_per_mb_j = round(total_energy / input_size_mb, 6) if (total_energy is not None and input_size_mb > 0) else None
+
                     row = {
                         "run": run_idx,
                         "return_code": rc,
                         "wall_time_s": round(t1 - t0, 6),
+                        "compression_ratio": round(compression_ratio, 6),
+                        "energy_per_mb_j": energy_per_mb_j,
                         # keep a couple of identifiers for easy merging later
                         "dataset": dataset,
                         "mode": "compress" if mode == "c" else "decompress",
@@ -391,7 +409,9 @@ def main():
 
                     # Stable header: base fields + sorted energibridge columns seen so far
                     metrics_path = metrics_csv_for(cond)
-                    base_cols = ["run", "return_code", "wall_time_s", "dataset", "mode", "lang", "input", "output"]
+                    base_cols = ["run", "return_code", "wall_time_s", "compression_ratio",
+                                 "energy_per_mb_j", "dataset", "mode", "lang",
+                                 "input", "output"]
                     extra_cols = sorted([k for k in row.keys() if k not in base_cols])
                     header = base_cols + extra_cols
                     append_metrics_row(metrics_path, header, row)
