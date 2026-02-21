@@ -107,37 +107,37 @@ def which_or_fail(exe: str) -> str:
             f"Tip: run `gzip --version` to confirm."
         )
     return p
-
 def parse_energibridge_summary(csv_path: Path) -> Dict[str, float]:
-    """
-    EnergiBridge --summary writes a CSV. We parse the first data row and keep numeric columns.
-    This is robust across column naming differences: we store *all* numeric fields we find.
-    """
     with csv_path.open("r", newline="") as f:
         reader = csv.DictReader(f)
-        row = next(reader, None)
-        if row is None:
-            return {}
+        rows = list(reader)
+    if len(rows) < 2:
+        return {}
+
+    def to_float_row(row):
+        result = {}
+        for k, v in row.items():
+            try:
+                result[k] = float(v)
+            except (ValueError, TypeError):
+                continue
+        return result
+
+    first = to_float_row(rows[0])
+    last = to_float_row(rows[-1])
 
     out: Dict[str, float] = {}
-    for k, v in row.items():
-        if v is None:
-            continue
-        s = str(v).strip()
-        if s == "":
-            continue
-        try:
-            out[k] = float(s)
-        except ValueError:
-            continue
+    # Compute deltas for numeric columns
+    for k in first:
+        if k in last:
+            out[k] = last[k] - first[k]
 
-    # Convenience: provide a normalized "total_energy_j" if something like it exists.
-    # If it doesn't, we leave it absent (analysis scripts can use the raw columns).
+    # Map to total_energy_j using PACKAGE_ENERGY (J) or similar
     if "total_energy_j" not in out:
-        # Look for likely energy columns
-        candidates = [k for k in out.keys() if "energy" in k.lower() and k.lower().endswith(("_j", "joules"))]
-        if len(candidates) == 1:
-            out["total_energy_j"] = out[candidates[0]]
+        candidates = [k for k in out if "energy" in k.lower() and k.lower().rstrip().endswith(("_j", "joules", "(j)"))]
+        if candidates:
+            preferred = [k for k in candidates if "package" in k.lower()]
+            out["total_energy_j"] = out[preferred[0] if preferred else candidates[0]]
 
     return out
 
