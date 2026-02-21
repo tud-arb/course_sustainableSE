@@ -15,7 +15,7 @@ import time
 
 def gzip_compress(data: bytes) -> bytes:
     """Compress data into gzip format."""
-    return gzip.compress(data)
+    return gzip.compress(data, compresslevel=6)
 
 
 def gzip_decompress(gz: bytes) -> bytes:

@@ -57,6 +57,34 @@ def command_for_lang(lang: str, repo_root: Path):
 
         return build, cmd
 
+    if lang == "go":
+        go_src = repo_root / "lang" / "go" / "zip.go"
+        go_bin = repo_root / "lang" / "go" / "zip"
+
+        def build():
+            # Build a standalone binary once for fair repeated execution
+            if not go_bin.exists():
+                cmd = ["go", "build", "-o", str(go_bin), str(go_src)]
+                subprocess.run(cmd, check=True)
+
+        def cmd(mode: str, inp: Path, out: Path):
+            return [str(go_bin), mode, str(inp), str(out)]
+
+        return build, cmd
+
+    if lang == "python":
+        py_src = repo_root / "lang" / "python" / "zip.py"
+
+        def build():
+            # No build step needed
+            if not py_src.exists():
+                raise SystemExit(f"Missing Python implementation: {py_src}")
+
+        def cmd(mode: str, inp: Path, out: Path):
+            return ["python3", str(py_src), mode, str(inp), str(out)]
+
+        return build, cmd
+
     raise ValueError(f"Unsupported lang: {lang}")
 
 
@@ -201,7 +229,7 @@ def make_ref_gz_gnu_gzip(gzip_exe: str, raw_input: Path, ref_gz: Path, level: in
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("--langs", nargs="+", required=True, choices=["cpp", "java"])
+    ALL_LANGS = ["cpp", "java", "go", "python"]
     ap.add_argument("--runs", type=int, default=30)
     ap.add_argument("--warmup", type=int, default=3)
     ap.add_argument("--rest-s", type=float, default=60.0)
@@ -228,7 +256,7 @@ def main():
 
     # Build all languages once
     builders: Dict[str, Tuple[callable, callable]] = {}
-    for lang in args.langs:
+    for lang in ALL_LANGS:
         build, mk_cmd = command_for_lang(lang, r)
         build()
         builders[lang] = (build, mk_cmd)
@@ -261,7 +289,7 @@ def main():
         "_comment_ref_gz": "Reference gz files are created with GNU gzip: gzip -6 -n -c INPUT > ref.gz, then used for ALL decompression runs.",
         "ref_gz_tool": "gnu_gzip",
         "energibridge": args.energibridge,
-        "langs": args.langs,
+        "langs": ALL_LANGS,
         "timestamp": ts,
     }
     write_json(exp_root / "config.json", config)
@@ -320,12 +348,12 @@ def main():
     for dataset in datasets:
         for mode in modes:
             # Ensure top-level folders exist
-            for lang in args.langs:
+            for lang in ALL_LANGS:
                 mkdir(exp_root / dataset / ("compress" if mode == "c" else "decompress") / lang)
 
             # Warm-up (discard): run each language warmup times (no shuffle requirement; still ok to shuffle)
             if args.warmup > 0:
-                warm_list = [Condition(dataset, mode, lang) for lang in args.langs]
+                warm_list = [Condition(dataset, mode, lang) for lang in ALL_LANGS]
                 rng.shuffle(warm_list)
                 for w in range(1, args.warmup + 1):
                     for cond in warm_list:
@@ -345,7 +373,7 @@ def main():
 
             # Measured runs
             for run_idx in range(1, args.runs + 1):
-                block = [Condition(dataset, mode, lang) for lang in args.langs]
+                block = [Condition(dataset, mode, lang) for lang in ALL_LANGS]
                 rng.shuffle(block)
 
                 for cond in block:
