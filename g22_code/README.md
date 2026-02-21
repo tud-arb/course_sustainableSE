@@ -397,12 +397,124 @@ gzip --version
 
 ---
 
-### 5.2 Running the full experiment (recommended)
+
+## 5. EnergiBridge measurements (all languages)
+
+We measure energy consumption using **EnergiBridge** while running the gzip implementations in **all supported languages**:
+
+* `cpp`
+* `java`
+* `go`
+* `python`
+
+Each language is evaluated on two datasets and two operations, for a total of **4 experiment groups**:
+
+* **compressible + compress**
+* **compressible + decompress**
+* **incompressible + compress**
+* **incompressible + decompress**
+
+The experiment runner automatically executes all groups and all languages.
+
+---
+
+### 5.1 Requirements
+
+#### EnergiBridge
+
+You need an EnergiBridge binary available either in your `PATH` or via an explicit path.
+
+Check availability:
+
+* Linux/macOS: `which energibridge`
+* Windows: `where energibridge`
+
+#### GNU gzip (for reference `.gz`)
+
+For **fair decompression measurements**, we use a **single fixed reference `.gz`** per dataset, generated with **GNU gzip**:
+
+* `gzip -6 -n -c INPUT > ref.gz`
+
+The `-n` flag removes filename and timestamp from the gzip header, improving reproducibility.
+
+Check availability:
+
+```bash
+gzip --version
+```
+
+> If `gzip` is missing on Windows, install it via WSL / Git Bash / MSYS2 / Cygwin, or run the experiments in a Linux environment.
+
+#### Language toolchains / runtimes
+
+The script builds/runs all implementations automatically, but the required tools must be installed:
+
+* **C++**: `g++` + zlib development libraries
+* **Java**: `javac` and `java`
+* **Go**: `go` (used to build a binary before measurement)
+* **Python**: `python3` (no build step; script is interpreted)
+
+Quick checks:
+
+```bash
+g++ --version
+java -version
+javac -version
+go version
+python3 --version
+```
+
+---
+
+### 5.2 Experimental methodology (how we run the experiments and why)
+
+The runner is designed to follow a controlled energy-measurement methodology (warm-up, repeat, rest, shuffle, automation), inspired by the course guidance.
+
+#### What is controlled automatically by the script
+
+* **Deterministic inputs** (`--seed`)
+  The same input bytes are generated every time for reproducibility.
+
+* **Reference gzip for decompression fairness**
+  All languages decompress the **same exact `.gz` bytes** (generated with GNU gzip at level 6), so decompression comparisons are fair.
+
+* **Warm-up runs** (`--warmup`)
+  Warm-up executions are run and discarded to reduce first-run / cold-system bias.
+
+* **Repeated measured runs** (`--runs`)
+  Multiple runs per condition (recommended: 30) provide a sample suitable for analysis.
+
+* **Rest between runs** (`--rest-s`)
+  A sleep period is inserted to reduce thermal drift and back-to-back heating effects.
+
+* **Shuffle / interleave languages** (`--shuffle-seed`)
+  Within each dataset+mode group, languages are executed in shuffled order per block to reduce ordering bias.
+
+* **Automation and reproducibility metadata**
+  The full experiment configuration is saved to `results/<datetime>/config.json`.
+
+#### What should still be done manually before running (recommended)
+
+To align with the “Zen mode / freeze settings” recommendations:
+
+* Close unnecessary applications (browser tabs, IDEs, messaging apps, etc.)
+* Disable notifications
+* Keep hardware setup fixed (same peripherals connected)
+* Prefer a stable power mode (e.g., plugged in, no battery saver)
+* Keep screen brightness / resolution fixed
+* Avoid downloads/updates during the experiment
+* Keep room conditions as stable as possible
+
+These controls are not enforced by the script, but they improve result quality.
+
+---
+
+### 5.3 Running the full experiment (recommended)
 
 Use the orchestrator script:
 
 ```bash
-python3 scripts/run_all_experiments.py --langs java cpp --energibridge energibridge
+python3 scripts/run_all_experiments.py --energibridge energibridge
 ```
 
 This will:
@@ -410,13 +522,13 @@ This will:
 1. Create a new experiment folder under `results/<datetime>/`
 2. Generate the two input files in `results/<datetime>/data/`
 3. Generate the two **reference `.gz`** files using **GNU gzip** (`gzip -6 -n`)
-4. Run all four experiment groups and record EnergiBridge measurements
+4. Build/run all language implementations (`cpp`, `java`, `go`, `python`)
+5. Run all four experiment groups and record EnergiBridge measurements
 
-Common options (all applied uniformly to every experiment group):
+#### Recommended command (scientific setup)
 
 ```bash
 python3 scripts/run_all_experiments.py \
-  --langs java cpp \
   --energibridge energibridge \
   --mb 64 \
   --runs 30 \
@@ -428,24 +540,39 @@ python3 scripts/run_all_experiments.py \
   --keep-raw
 ```
 
-**Meaning of parameters:**
+#### Quick test command (sanity check before long run)
+
+```bash
+python3 scripts/run_all_experiments.py \
+  --energibridge energibridge \
+  --mb 64 \
+  --runs 1 \
+  --warmup 1 \
+  --rest-s 1 \
+  --seed 12345 \
+  --shuffle-seed 123 \
+  --interval-us 100 \
+  --keep-raw
+```
+
+#### Meaning of parameters
 
 * `--mb`: size of generated inputs (in MB)
-* `--runs`: number of measured runs per condition (default 30)
-* `--warmup`: number of warm-up runs per condition (discarded)
-* `--rest-s`: sleep time between measured runs (reduces temperature drift)
+* `--runs`: number of **measured** runs per condition (recommended: 30)
+* `--warmup`: number of warm-up runs per condition (discarded from `metrics.csv`)
+* `--rest-s`: sleep time between measured runs (reduces thermal drift)
 * `--seed`: deterministic input generation seed
-* `--shuffle-seed`: deterministic shuffle seed (interleaves languages within each block)
+* `--shuffle-seed`: deterministic shuffle seed (interleaves language order within each block)
 * `--interval-us`: EnergiBridge sampling interval in microseconds
 * `--keep-raw`: keep per-run EnergiBridge CSV/log files (recommended for debugging/auditing)
 
 ---
 
-### 5.3 Results folder structure
+### 5.4 Results folder structure
 
-Each experiment creates:
+Each experiment creates a self-contained folder:
 
-```
+```text
 results/
   <datetime>/
     config.json
@@ -457,57 +584,133 @@ results/
 
     compressible/
       compress/
-        <lang>/
+        cpp/
           metrics.csv
           artifacts/
           raw/                (only if --keep-raw)
+        java/
+          metrics.csv
+          artifacts/
+          raw/                (only if --keep-raw)
+        go/
+          metrics.csv
+          artifacts/
+          raw/                (only if --keep-raw)
+        python/
+          metrics.csv
+          artifacts/
+          raw/                (only if --keep-raw)
+
       decompress/
-        <lang>/
+        cpp/
+          metrics.csv
+          artifacts/
+          raw/                (only if --keep-raw)
+        java/
+          metrics.csv
+          artifacts/
+          raw/                (only if --keep-raw)
+        go/
+          metrics.csv
+          artifacts/
+          raw/                (only if --keep-raw)
+        python/
           metrics.csv
           artifacts/
           raw/                (only if --keep-raw)
 
     incompressible/
       compress/
-        <lang>/
+        cpp/
           metrics.csv
           artifacts/
           raw/                (only if --keep-raw)
+        java/
+          metrics.csv
+          artifacts/
+          raw/                (only if --keep-raw)
+        go/
+          metrics.csv
+          artifacts/
+          raw/                (only if --keep-raw)
+        python/
+          metrics.csv
+          artifacts/
+          raw/                (only if --keep-raw)
+
       decompress/
-        <lang>/
+        cpp/
+          metrics.csv
+          artifacts/
+          raw/                (only if --keep-raw)
+        java/
+          metrics.csv
+          artifacts/
+          raw/                (only if --keep-raw)
+        go/
+          metrics.csv
+          artifacts/
+          raw/                (only if --keep-raw)
+        python/
           metrics.csv
           artifacts/
           raw/                (only if --keep-raw)
 ```
 
-* `config.json`: records the experiment configuration (mb, runs, warmup, rest, seeds, etc.)
-* `data/`: contains generated inputs and reference gzip files
-* `artifacts/`: contains output files produced by the implementations (e.g., `.gz` for compression, roundtrip outputs for decompression)
-* `raw/`: contains per-run EnergiBridge CSV/log files (if enabled)
-* `metrics.csv`: **analysis-ready table** with **one row per run**
+#### Folder/file meanings
+
+* `config.json`
+  Records the experiment configuration (MB size, runs, warmup, rest, seeds, sampling interval, etc.)
+
+* `data/`
+  Contains generated input datasets and the GNU-gzip-generated reference `.gz` files used for decompression fairness
+
+* `artifacts/`
+  Output files produced by the implementation during each run (compressed `.gz` files or decompressed roundtrip files)
+
+* `raw/` (optional, with `--keep-raw`)
+  Per-run EnergiBridge output and logs:
+
+    * `run_k.csv` / `warmup_k.csv` (EnergiBridge summary CSVs)
+    * `run_k.log` / `warmup_k.log` (stdout/stderr)
+
+* `metrics.csv`
+  **Analysis-ready file** with **one row per measured run**
 
 ---
 
-### 5.4 What metrics are collected
+### 5.5 What metrics are collected
 
 EnergiBridge writes a **CSV per run** (e.g., `raw/run_1.csv`) when invoked with `--summary`.
-Our scripts parse that CSV and append the numeric fields into a single file:
+The experiment script parses that CSV and appends the numeric fields into a single file:
 
-* `metrics.csv` (one row per run)
+* `metrics.csv` (one row per measured run)
 
-`metrics.csv` always includes these base fields:
+#### `metrics.csv` base columns (always present)
 
 * `run`: run number (1..N)
 * `return_code`: command return code (0 = success)
-* `wall_time_s`: elapsed wall time of the run (seconds)
-* `dataset`: compressible / incompressible
-* `mode`: compress / decompress
-* `lang`: language name
-* `input`, `output`: paths used for the run
+* `wall_time_s`: elapsed wall-clock time of the run (seconds)
+* `dataset`: `compressible` / `incompressible`
+* `mode`: `compress` / `decompress`
+* `lang`: `cpp` / `java` / `go` / `python`
+* `input`: input path used for that run
+* `output`: output path used for that run
 
-Additionally, it includes **all numeric columns reported by EnergiBridge** on your system (e.g., total energy, CPU package energy, duration, etc.). The exact available columns can vary by OS/hardware/EnergiBridge version, so the recommended workflow is:
+#### EnergiBridge-derived columns
 
-* Use `metrics.csv` for analysis (already merged)
-* Use `raw/run_k.csv` for auditing/debugging a specific outlier run (if `--keep-raw`)
+In addition, the script stores **all numeric columns reported by EnergiBridge** on your machine (for example, energy- and duration-related values). The exact column names may vary by:
+
+* OS
+* hardware
+* EnergiBridge version
+* available sensors/counters
+
+This is expected.
+
+#### Recommended workflow for analysis
+
+* Use `metrics.csv` for normal analysis (plots, summaries, statistical tests)
+* Use `raw/run_k.csv` and `raw/run_k.log` to inspect/debug outliers or failed runs (when `--keep-raw` is enabled)
 
 ---
