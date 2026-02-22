@@ -119,6 +119,15 @@ java -cp lang\java\bin Zip c data\input_compressible_64MB.jsonl data\out_java.gz
 java -cp lang\java\bin Zip d data\out_java.gz data\roundtrip_java.jsonl
 ```
 
+## 2c. Build and run Python implementation
+Python uses the built-in `gzip` module, which is a wrapper around zlib and is standards-compliant.
+
+```bat
+python zip.py c  input_file  output_file.gz      # compress
+python zip.py d  input_file.gz  output_file      # decompress
+```
+
+
 ## 3. Test that compressible output is correct
 Correctness is defined as:
 1. **Round-trip integrity:**

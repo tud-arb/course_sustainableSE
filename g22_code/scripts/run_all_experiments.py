@@ -135,37 +135,37 @@ def which_or_fail(exe: str) -> str:
             f"Tip: run `gzip --version` to confirm."
         )
     return p
-
 def parse_energibridge_summary(csv_path: Path) -> Dict[str, float]:
-    """
-    EnergiBridge --summary writes a CSV. We parse the first data row and keep numeric columns.
-    This is robust across column naming differences: we store *all* numeric fields we find.
-    """
     with csv_path.open("r", newline="") as f:
         reader = csv.DictReader(f)
-        row = next(reader, None)
-        if row is None:
-            return {}
+        rows = list(reader)
+    if len(rows) < 2:
+        return {}
+
+    def to_float_row(row):
+        result = {}
+        for k, v in row.items():
+            try:
+                result[k] = float(v)
+            except (ValueError, TypeError):
+                continue
+        return result
+
+    first = to_float_row(rows[0])
+    last = to_float_row(rows[-1])
 
     out: Dict[str, float] = {}
-    for k, v in row.items():
-        if v is None:
-            continue
-        s = str(v).strip()
-        if s == "":
-            continue
-        try:
-            out[k] = float(s)
-        except ValueError:
-            continue
+    # Compute deltas for numeric columns
+    for k in first:
+        if k in last:
+            out[k] = last[k] - first[k]
 
-    # Convenience: provide a normalized "total_energy_j" if something like it exists.
-    # If it doesn't, we leave it absent (analysis scripts can use the raw columns).
+    # Map to total_energy_j using PACKAGE_ENERGY (J) or similar
     if "total_energy_j" not in out:
-        # Look for likely energy columns
-        candidates = [k for k in out.keys() if "energy" in k.lower() and k.lower().endswith(("_j", "joules"))]
-        if len(candidates) == 1:
-            out["total_energy_j"] = out[candidates[0]]
+        candidates = [k for k in out if "energy" in k.lower() and k.lower().rstrip().endswith(("_j", "joules", "(j)"))]
+        if candidates:
+            preferred = [k for k in candidates if "package" in k.lower()]
+            out["total_energy_j"] = out[preferred[0] if preferred else candidates[0]]
 
     return out
 
@@ -402,10 +402,28 @@ def main():
                     if eb_csv.exists():
                         summary = parse_energibridge_summary(eb_csv)
 
+                    # --- Compute derived metrics ---
+                    input_size_bytes = inp.stat().st_size if inp.exists() else 0
+                    output_size_bytes = outp.stat().st_size if outp.exists() else 0
+                    input_size_mb = input_size_bytes / (1024 * 1024)
+
+                    # Compression ratio = uncompressed / compressed  (>1 means smaller)
+                    if mode == "c":
+                        compression_ratio = (input_size_bytes / output_size_bytes) if output_size_bytes > 0 else 0.0
+                    else:
+                        # Decompression: input is compressed, output is uncompressed
+                        compression_ratio = (output_size_bytes / input_size_bytes) if input_size_bytes > 0 else 0.0
+
+                    # Energy per MB (joules per megabyte of input)
+                    total_energy = summary.get("total_energy_j", None)
+                    energy_per_mb_j = round(total_energy / input_size_mb, 6) if (total_energy is not None and input_size_mb > 0) else None
+
                     row = {
                         "run": run_idx,
                         "return_code": rc,
                         "wall_time_s": round(t1 - t0, 6),
+                        "compression_ratio": round(compression_ratio, 6),
+                        "energy_per_mb_j": energy_per_mb_j,
                         # keep a couple of identifiers for easy merging later
                         "dataset": dataset,
                         "mode": "compress" if mode == "c" else "decompress",
@@ -419,7 +437,9 @@ def main():
 
                     # Stable header: base fields + sorted energibridge columns seen so far
                     metrics_path = metrics_csv_for(cond)
-                    base_cols = ["run", "return_code", "wall_time_s", "dataset", "mode", "lang", "input", "output"]
+                    base_cols = ["run", "return_code", "wall_time_s", "compression_ratio",
+                                 "energy_per_mb_j", "dataset", "mode", "lang",
+                                 "input", "output"]
                     extra_cols = sorted([k for k in row.keys() if k not in base_cols])
                     header = base_cols + extra_cols
                     append_metrics_row(metrics_path, header, row)
