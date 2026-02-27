@@ -1,13 +1,3 @@
-"""
-Gzip Compress / Decompress — Standard Library Edition
-======================================================
-Uses Python's built-in `gzip` module for all heavy lifting.
-
-Usage:
-    python zip.py c  input_file  output_file.gz      # compress
-    python zip.py d  input_file.gz  output_file      # decompress
-"""
-
 import gzip
 import sys
 import time

@@ -1,10 +1,3 @@
-"""
-Usage examples:
-  python data/generate_input.py --type compressible --mb 256 --out data/input_compressible_256MB.jsonl
-  python data/generate_input.py --type incompressible --mb 256 --out data/input_incompressible_256MB.bin
-  python data/generate_input.py --mb 64   # defaults to compressible, outputs under data/
-"""
-
 from __future__ import annotations
 
 import argparse

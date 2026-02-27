@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 import argparse
 import csv
 import json
@@ -12,9 +11,7 @@ from pathlib import Path
 from typing import Dict, List, Optional, Tuple
 
 
-# -------------------------
 # Build + language commands
-# -------------------------
 
 def build_cpp(cpp_src: Path, cpp_bin: Path):
     cpp_bin.parent.mkdir(parents=True, exist_ok=True)
@@ -88,9 +85,7 @@ def command_for_lang(lang: str, repo_root: Path):
     raise ValueError(f"Unsupported lang: {lang}")
 
 
-# -------------------------
 # Experiment model
-# -------------------------
 
 @dataclass(frozen=True)
 class Condition:
@@ -105,9 +100,7 @@ class Condition:
         return "compress" if self.mode == "c" else "decompress"
 
 
-# -------------------------
 # Helpers
-# -------------------------
 
 def repo_root() -> Path:
     return Path(__file__).resolve().parents[1]
@@ -223,9 +216,7 @@ def make_ref_gz_gnu_gzip(gzip_exe: str, raw_input: Path, ref_gz: Path, level: in
         subprocess.run(cmd, check=True, stdout=out, stderr=subprocess.PIPE)
 
 
-# -------------------------
 # Main experiment runner
-# -------------------------
 
 def main():
     ap = argparse.ArgumentParser()
